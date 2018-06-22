@@ -1,6 +1,6 @@
 {
   "name": "css-module-override-webpack-plugin",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Override CSS modules",
   "main": "dist/index.js",
   "module": "src/index.js",
