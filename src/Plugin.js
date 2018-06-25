@@ -60,7 +60,7 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
 
     getReplacedModules(modules, override, compilation) {
         return modules.map(module => {
-            const overridePath = compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
+            const overridePath = compilation[LOADER_NS].overridesMap && compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
 
             if(!overridePath) {
                 return module;
@@ -73,7 +73,7 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
     replaceModules(chunk, override, compilation) {
         chunk.modulesIterable.forEach(module => {
             if(module.type === NS) {
-                const overridePath = compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
+                const overridePath = compilation[LOADER_NS].overridesMap && compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
 
                 if(overridePath) {
                     const moduleOverride = getModule(compilation, overridePath);
