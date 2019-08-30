@@ -128,3 +128,15 @@ dist/
       -- script.js
       -- main.css
 ```
+
+## Options
+
+| Option | Default | Description |
+|:---:|:---:|---|
+| overrides | `undefined` |  Array of strings. Overrides to process |
+| keepOriginals | `false` |  If set to false, resulting bundle will contain only overridden modules |
+| standalone | `false` |  Set to true to use without `module-override-webpack-plugin`|
+| standaloneOverridesOutputPath | `undefined` |  Path for the bundles with overrides|
+
+## Debug
+You can use `debug` library with namespace `css-module-override-webpack-plugin`. `debug` is optional dependency. You have to install it yourself if you want to use it.

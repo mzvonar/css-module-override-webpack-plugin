@@ -82,12 +82,13 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
             const replacedModule = overridePath && getModule(compilation, overridePath);
 
             if(replacedModule) {
-                debug('Adding replaced module: ', replacedModule.issuer && replacedModule.issuer.id);
+                debug('Adding overridden module: ', replacedModule.issuer && replacedModule.issuer.id);
                 output.push(replacedModule);
 
                 this.addOverrideIndices(module, replacedModule, chunk);
             }
             else if(this.options.keepOriginals) {
+                debug('Adding original module: ', module.issuer && module.issuer.id);
                 output.push(module);
             }
         }
@@ -106,8 +107,13 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                     if(moduleOverride || !this.options.keepOriginals) {
                         chunk.modulesIterable.delete(module);
                     }
+                    else {
+                        debug('Adding original module: ', module.issuer && module.issuer.id);
+                    }
 
                     if(moduleOverride) {
+                        debug('Adding overridden module: ', moduleOverride.issuer && moduleOverride.issuer.id);
+
                         this.addOverrideIndices(module, moduleOverride, chunk);
                         chunk.modulesIterable.add(moduleOverride);
                     }
