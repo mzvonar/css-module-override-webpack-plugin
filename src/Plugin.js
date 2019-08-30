@@ -1,9 +1,9 @@
-import path from 'path';
 import validateOptions from 'schema-utils';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
+import debug from './debug';
 import fixBabelClass from './fixBabelClass';
 
-const NS = path.dirname(require.resolve('mini-css-extract-plugin'));
+const MODULE_TYPE = 'css/mini-extract';
 const MAIN_NS = '__moduleOverrideWebpackPlugin__';
 const LOADER_NS = '__moduleOverrides__';
 const REGEXP_OVERRIDE = /\[override\]/gi;
@@ -15,6 +15,9 @@ const schema = {
         overrides: {
             type: 'array',
             minItems: 1
+        },
+        keepOriginals: {
+            type: 'boolean'
         },
         standalone: {
             type: 'boolean'
@@ -45,7 +48,7 @@ const getReplacer = (value, allowEmpty) => {
 
 function getModule(compilation, resource) {
     for(let i = 0, length = compilation.modules.length; i < length; i += 1) {
-        if(compilation.modules[i].type === NS && compilation.modules[i].issuer.resource === resource) {
+        if(compilation.modules[i].type === MODULE_TYPE && compilation.modules[i].issuer.resource === resource) {
             return compilation.modules[i];
         }
     }
@@ -58,28 +61,54 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
         super(options);
     }
 
-    getReplacedModules(modules, override, compilation) {
-        return modules.map(module => {
-            const overridePath = compilation[LOADER_NS].overridesMap && compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
-
-            if(!overridePath) {
-                return module;
+    addOverrideIndices(originalModule, replacedModule, chunk) {
+        chunk.groupsIterable.forEach((chunkGroup => {
+            if (typeof chunkGroup.getModuleIndex2 === 'function') {
+                const moduleIndex = chunkGroup.getModuleIndex2(originalModule);
+                if(typeof moduleIndex !== 'undefined') {
+                    chunkGroup.setModuleIndex2(replacedModule, moduleIndex);
+                }
             }
+        }));
+    }
 
-            return getModule(compilation, overridePath) || module;
-        });
+    getReplacedModules(modules, override, compilation, chunk) {
+        const output = [];
+
+        for(let i = 0, length = modules.length; i < length; i += 1) {
+            const module = modules[i];
+
+            const overridePath = compilation[LOADER_NS].overridesMap && compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
+            const replacedModule = overridePath && getModule(compilation, overridePath);
+
+            if(replacedModule) {
+                debug('Adding replaced module: ', replacedModule.issuer && replacedModule.issuer.id);
+                output.push(replacedModule);
+
+                this.addOverrideIndices(module, replacedModule, chunk);
+            }
+            else if(this.options.keepOriginals) {
+                output.push(module);
+            }
+        }
+
+        return output;
     }
 
     replaceModules(chunk, override, compilation) {
         chunk.modulesIterable.forEach(module => {
-            if(module.type === NS) {
+            if(module.type === MODULE_TYPE) {
                 const overridePath = compilation[LOADER_NS].overridesMap && compilation[LOADER_NS].overridesMap[module.issuer.resource] && compilation[LOADER_NS].overridesMap[module.issuer.resource][override];
 
                 if(overridePath) {
                     const moduleOverride = getModule(compilation, overridePath);
 
-                    if(moduleOverride) {
+                    if(moduleOverride || !this.options.keepOriginals) {
                         chunk.modulesIterable.delete(module);
+                    }
+
+                    if(moduleOverride) {
+                        this.addOverrideIndices(module, moduleOverride, chunk);
                         chunk.modulesIterable.add(moduleOverride);
                     }
                 }
@@ -129,27 +158,28 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                     pluginName,
                     (result, { chunk }) => {
                         const renderedModules = Array.from(chunk.modulesIterable).filter(
-                            (module) => module.type === NS
+                            (module) => module.type === MODULE_TYPE
                         );
 
-                        if (renderedModules.length > 0) {
+                        if(renderedModules.length > 0) {
                             for(let i = 0, length = this.options.overrides.length; i < length; i += 1) {
                                 const override = this.options.overrides[i];
 
-                                console.log('main override ' + override);
                                 result.push({
                                     render: () =>
                                         this.renderContentAsset(
-                                            this.getReplacedModules(renderedModules, override, compilation),
+                                            compilation,
+                                            chunk,
+                                            this.getReplacedModules(renderedModules, override, compilation, chunk),
                                             compilation.runtimeTemplate.requestShortener
                                         ),
                                     filenameTemplate: this.getOutputPath(this.options.standaloneOverridesOutputPath, override),
                                     pathOptions: {
                                         chunk,
-                                        contentHashType: NS,
+                                        contentHashType: MODULE_TYPE,
                                     },
                                     identifier: `${pluginName}.${override}.${chunk.id}`,
-                                    hash: chunk.contentHash[NS],
+                                    hash: chunk.contentHash[MODULE_TYPE],
                                 });
                             }
 
@@ -161,27 +191,28 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                     pluginName,
                     (result, { chunk }) => {
                         const renderedModules = Array.from(chunk.modulesIterable).filter(
-                            (module) => module.type === NS
+                            (module) => module.type === MODULE_TYPE
                         );
 
                         if (renderedModules.length > 0) {
                             for(let i = 0, length = compilation.__webpackModuleOverride__.overrides.length; i < length; i += 1) {
                                 const override = compilation.__webpackModuleOverride__.overrides[i];
 
-                                console.log('chunk override ' + override);
                                 result.push({
                                     render: () =>
                                         this.renderContentAsset(
+                                            compilation,
+                                            chunk,
                                             this.getReplacedModules(renderedModules),
                                             compilation.runtimeTemplate.requestShortener
                                         ),
                                     filenameTemplate: this.getOutputPath(this.options.standaloneOverridesOutputPath, override),
                                     pathOptions: {
                                         chunk,
-                                        contentHashType: NS,
+                                        contentHashType: MODULE_TYPE,
                                     },
                                     identifier: `${pluginName}.${override}.${chunk.id}`,
-                                    hash: chunk.contentHash[NS],
+                                    hash: chunk.contentHash[MODULE_TYPE],
                                 });
                             }
 
