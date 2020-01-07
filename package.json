@@ -32,7 +32,7 @@
   "homepage": "https://github.com/mzvonar/css-module-override-webpack-plugin#readme",
   "peerDependencies": {
     "mini-css-extract-plugin": "^0.8.0",
-    "webpack": "^4.12.0"
+    "webpack": "^4.41.5"
   },
   "dependencies": {
     "schema-utils": "^0.4.5",
