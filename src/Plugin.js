@@ -1,7 +1,12 @@
+import webpack from 'webpack';
 import validateOptions from 'schema-utils';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import debug from './debug';
 import fixBabelClass from './fixBabelClass';
+
+const {
+    util: { createHash },
+} = webpack;
 
 const MODULE_TYPE = 'css/mini-extract';
 const MAIN_NS = '__moduleOverrideWebpackPlugin__';
@@ -122,6 +127,22 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
         });
     }
 
+    getContentHash(modules, compilation) {
+        const { outputOptions } = compilation;
+        const { hashFunction, hashDigest, hashDigestLength } = outputOptions;
+        const hash = createHash(hashFunction);
+
+        for (const m of modules) {
+            if (m.type === MODULE_TYPE) {
+                m.updateHash(hash);
+            }
+        }
+
+        return hash
+            .digest(hashDigest)
+            .substring(0, hashDigestLength);
+    }
+
     apply(compiler) {
         if(!this.options.standalone) {
             compiler.hooks.thisCompilation.tap(pluginName, (compilation) => {
@@ -170,13 +191,14 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                         if(renderedModules.length > 0) {
                             for(let i = 0, length = this.options.overrides.length; i < length; i += 1) {
                                 const override = this.options.overrides[i];
+                                const modules = this.getReplacedModules(renderedModules, override, compilation, chunk);
 
                                 result.push({
                                     render: () =>
                                         this.renderContentAsset(
                                             compilation,
                                             chunk,
-                                            this.getReplacedModules(renderedModules, override, compilation, chunk),
+                                            modules,
                                             compilation.runtimeTemplate.requestShortener
                                         ),
                                     filenameTemplate: this.getOutputPath(this.options.standaloneOverridesOutputPath, override),
@@ -185,7 +207,7 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                                         contentHashType: MODULE_TYPE,
                                     },
                                     identifier: `${pluginName}.${override}.${chunk.id}`,
-                                    hash: chunk.contentHash[MODULE_TYPE],
+                                    hash: this.getContentHash(modules, compilation)
                                 });
                             }
 
@@ -203,13 +225,14 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                         if (renderedModules.length > 0) {
                             for(let i = 0, length = compilation.__webpackModuleOverride__.overrides.length; i < length; i += 1) {
                                 const override = compilation.__webpackModuleOverride__.overrides[i];
+                                const modules = this.getReplacedModules(renderedModules);
 
                                 result.push({
                                     render: () =>
                                         this.renderContentAsset(
                                             compilation,
                                             chunk,
-                                            this.getReplacedModules(renderedModules),
+                                            modules,
                                             compilation.runtimeTemplate.requestShortener
                                         ),
                                     filenameTemplate: this.getOutputPath(this.options.standaloneOverridesOutputPath, override),
@@ -218,7 +241,7 @@ class CssModuleOverrideWebpackPlugin extends MiniCssExtractPlugin {
                                         contentHashType: MODULE_TYPE,
                                     },
                                     identifier: `${pluginName}.${override}.${chunk.id}`,
-                                    hash: chunk.contentHash[MODULE_TYPE],
+                                    hash: this.getContentHash(modules, compilation)
                                 });
                             }
 
